@@ -5,9 +5,12 @@
 #include "tga.h"
 
 void blur_pixel(
-        unsigned char * r,
-        unsigned char * g,
-        unsigned char * b,
+        const unsigned char * r,
+        const unsigned char * g,
+        const unsigned char * b,
+        unsigned char * rOut,
+        unsigned char * gOut,
+        unsigned char * bOut,
         int width,
         int height,
         int px,
@@ -45,9 +48,9 @@ void blur_pixel(
 
     int index = py * width + px;
 
-    r[index] = (unsigned char)round(rBlur);
-    g[index] = (unsigned char)round(gBlur);
-    b[index] = (unsigned char)round(bBlur);
+    rOut[index] = (unsigned char)round(rBlur);
+    gOut[index] = (unsigned char)round(gBlur);
+    bOut[index] = (unsigned char)round(bBlur);
 }
 
 struct BlurOptions {
@@ -101,17 +104,21 @@ int main(int argc, char **argv) {
         g[i] = image.imageData[i*3+1];
         b[i] = image.imageData[i*3+2];
     }
+
+    auto * rOut = new unsigned char [image.height * image.width];
+    auto * gOut = new unsigned char [image.height * image.width];
+    auto * bOut = new unsigned char [image.height * image.width];
     
     for (int i = 0; i < image.height; i++) {
         for (int j = 0; j < image.width; j++) {
-            blur_pixel(r, g, b, (int)image.width, (int)image.height, j, i, size, blur);
+            blur_pixel(r, g, b, rOut, gOut, bOut, (int)image.width, (int)image.height, j, i, size, blur);
         }
     }
 
     for (int i = 0; i < image.height * image.width; i++) {
-        image.imageData[i*3+0] = r[i];
-        image.imageData[i*3+1] = g[i];
-        image.imageData[i*3+2] = b[i];
+        image.imageData[i*3+0] = rOut[i];
+        image.imageData[i*3+1] = gOut[i];
+        image.imageData[i*3+2] = bOut[i];
     }
 
     tga::saveTGA(image, "out.tga");
