@@ -6,11 +6,19 @@ __kernel void test(
 	__global uchar* gOut,
 	__global uchar* bOut)
 {
-	size_t id = get_global_id(0);
+	size_t x = get_global_id(0);
+	size_t y = get_global_id(1);
 
-	printf("r[%d] = %d, g[%d] = %d, b[%d] = %d\n", id, r[id], id, g[id], id, b[id]);
+    size_t width = get_global_size(0);
+    size_t height = get_global_size(1);
 
-	rOut[id] = 1;
-	gOut[id] = 2;
-	bOut[id] = 3;
+
+	if(x % 100 == 0 && y % 100 == 0) {
+		printf("x = %d\n", x);
+		printf("y = %d\n", y);
+	}
+
+	rOut[0] = 255;
+	gOut[0] = 255;
+	bOut[0] = 255;
 }

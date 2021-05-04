@@ -5,6 +5,8 @@
 #include "gaussian_blur.h"
 #include "tga.h"
 #include <memory>
+#define CL_MINIMUM_OPENCL_VERSION 120
+#define CL_TARGET_OPENCL_VERSION 120
 #include "CL/cl.h"
 
 std::string cl_errorstring(cl_int err);
@@ -140,21 +142,23 @@ int main(int argc, char** argv) {
     tga::TGAImage image;
     tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
 
-    auto r = std::make_unique<unsigned char[]>(image.height * image.width);
-    auto g = std::make_unique<unsigned char[]>(image.height * image.width);
-    auto b = std::make_unique<unsigned char[]>(image.height * image.width);
+    int imageSize = (int)image.height * (int)image.width;
 
-    for (int i = 0; i < image.height * image.width; i++) {
+    auto r = std::make_unique<unsigned char[]>(imageSize);
+    auto g = std::make_unique<unsigned char[]>(imageSize);
+    auto b = std::make_unique<unsigned char[]>(imageSize);
+
+    for (int i = 0; i < imageSize; i++) {
         r[i] = image.imageData[i * 3 + 0];
         g[i] = image.imageData[i * 3 + 1];
         b[i] = image.imageData[i * 3 + 2];
     }
 
-    auto rOut = std::make_unique<unsigned char[]>(image.height * image.width);
-    auto gOut = std::make_unique<unsigned char[]>(image.height * image.width);
-    auto bOut = std::make_unique<unsigned char[]>(image.height * image.width);
+    auto rOut = std::make_unique<unsigned char[]>(imageSize);
+    auto gOut = std::make_unique<unsigned char[]>(imageSize);
+    auto bOut = std::make_unique<unsigned char[]>(imageSize);
 
-    auto dataSize = sizeof(unsigned char) * image.height * image.width;
+    auto dataSize = sizeof(unsigned char) * imageSize;
     cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
     checkStatus(status);
     cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
@@ -208,8 +212,8 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 4, sizeof(cl_mem), &bufferGOut));
     checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferBOut));
 
-    size_t globalWorkSize = image.height * image.width;
-    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, &globalWorkSize, NULL, 0, NULL, NULL));
+    size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL));
 
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferROut, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferGOut, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
@@ -227,7 +231,7 @@ int main(int argc, char** argv) {
     //    }
     //}
 
-    for (int i = 0; i < image.height * image.width; i++) {
+    for (int i = 0; i < imageSize; i++) {
         image.imageData[i * 3 + 0] = rOut[i];
         image.imageData[i * 3 + 1] = gOut[i];
         image.imageData[i * 3 + 2] = bOut[i];
