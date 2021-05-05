@@ -13,55 +13,6 @@ std::string cl_errorstring(cl_int err);
 void checkStatus(cl_int err);
 void printCompilerError(cl_program program, cl_device_id device);
 
-void blur_pixel(
-    const unsigned char* r,
-    const unsigned char* g,
-    const unsigned char* b,
-    unsigned char* rOut,
-    unsigned char* gOut,
-    unsigned char* bOut,
-    int width,
-    int height,
-    int px,
-    int py,
-    int kernelSize,
-    const double* kernel
-) {
-
-    double rBlur = 0.0;
-    double gBlur = 0.0;
-    double bBlur = 0.0;
-
-    int i = 0;
-    for (int x = px - (kernelSize / 2); x <= px + (kernelSize / 2); x++) {
-        int j = 0;
-        for (int y = py - (kernelSize / 2); y <= py + (kernelSize / 2); y++) {
-            int newX = x;
-            int newY = y;
-            if (newX < 0) newX = 0;
-            if (newX >= width) newX = width - 1;
-            if (newY < 0) newY = 0;
-            if (newY >= height) newY = height - 1;
-
-            int index = newY * width + newX;
-            int blurIndex = i * kernelSize + j;
-
-            rBlur += (double)r[index] * kernel[blurIndex];
-            gBlur += (double)g[index] * kernel[blurIndex];
-            bBlur += (double)b[index] * kernel[blurIndex];
-
-            j++;
-        }
-        i++;
-    }
-
-    int index = py * width + px;
-
-    rOut[index] = (unsigned char)round(rBlur);
-    gOut[index] = (unsigned char)round(gBlur);
-    bOut[index] = (unsigned char)round(bBlur);
-}
-
 struct BlurOptions {
     std::string inFilePath;
     std::string outFilePath;
@@ -85,10 +36,10 @@ int main(int argc, char** argv) {
     blurOptions.kernelSize = result["kernelSize"].as<int>();
     blurOptions.sigma = result["sigma"].as<double>();
 
-    int size = blurOptions.kernelSize;
+    int kernelSize = blurOptions.kernelSize;
     double std_dev = blurOptions.sigma;
 
-    if (size <= 0 || size > 9 || size % 2 == 0) {
+    if (kernelSize <= 0 || kernelSize > 9 || kernelSize % 2 == 0) {
         std::cout << "invalid kernel size" << std::endl;
         exit(EXIT_FAILURE);
     }
@@ -97,6 +48,29 @@ int main(int argc, char** argv) {
         std::cout << "invalid sigma" << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    double* blur = blur_kernel(kernelSize, std_dev);
+
+    tga::TGAImage image;
+    tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
+
+    int imageSize = (int)image.height * (int)image.width;
+
+    auto r = std::make_unique<unsigned char[]>(imageSize);
+    auto g = std::make_unique<unsigned char[]>(imageSize);
+    auto b = std::make_unique<unsigned char[]>(imageSize);
+
+    for (int i = 0; i < imageSize; i++) {
+        r[i] = image.imageData[i * 3 + 0];
+        g[i] = image.imageData[i * 3 + 1];
+        b[i] = image.imageData[i * 3 + 2];
+    }
+
+    auto rOut = std::make_unique<unsigned char[]>(imageSize);
+    auto gOut = std::make_unique<unsigned char[]>(imageSize);
+    auto bOut = std::make_unique<unsigned char[]>(imageSize);
+
+    auto dataSize = sizeof(unsigned char) * imageSize;
 
     // used for checking error status of api calls
     cl_int status;
@@ -137,28 +111,6 @@ int main(int argc, char** argv) {
     cl_command_queue commandQueue = clCreateCommandQueue(context, device, 0, &status);
     checkStatus(status);
 
-    double* blur = blur_kernel(size, std_dev);
-
-    tga::TGAImage image;
-    tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
-
-    int imageSize = (int)image.height * (int)image.width;
-
-    auto r = std::make_unique<unsigned char[]>(imageSize);
-    auto g = std::make_unique<unsigned char[]>(imageSize);
-    auto b = std::make_unique<unsigned char[]>(imageSize);
-
-    for (int i = 0; i < imageSize; i++) {
-        r[i] = image.imageData[i * 3 + 0];
-        g[i] = image.imageData[i * 3 + 1];
-        b[i] = image.imageData[i * 3 + 2];
-    }
-
-    auto rOut = std::make_unique<unsigned char[]>(imageSize);
-    auto gOut = std::make_unique<unsigned char[]>(imageSize);
-    auto bOut = std::make_unique<unsigned char[]>(imageSize);
-
-    auto dataSize = sizeof(unsigned char) * imageSize;
     cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
     checkStatus(status);
     cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
@@ -171,10 +123,16 @@ int main(int argc, char** argv) {
     checkStatus(status);
     cl_mem bufferBOut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
     checkStatus(status);
+    cl_mem bufferKernelSize = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &status);
+    checkStatus(status);
+    cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize * kernelSize, NULL, &status);
+    checkStatus(status);
 
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferR, CL_TRUE, 0, dataSize, r.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, g.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, b.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferKernelSize, CL_TRUE, 0, sizeof(int), &kernelSize, 0, NULL, NULL));
+    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferBlurKernel, CL_TRUE, 0, sizeof(double) * kernelSize * kernelSize, blur, 0, NULL, NULL));
 
     // read the kernel source
     const char* kernelFileName = "gauss.cl";
@@ -211,6 +169,8 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bufferROut));
     checkStatus(clSetKernelArg(kernel, 4, sizeof(cl_mem), &bufferGOut));
     checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferBOut));
+    checkStatus(clSetKernelArg(kernel, 6, sizeof(cl_mem), &bufferKernelSize));
+    checkStatus(clSetKernelArg(kernel, 7, sizeof(cl_mem), &bufferBlurKernel));
 
     size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL));
@@ -224,12 +184,6 @@ int main(int argc, char** argv) {
     checkStatus(clReleaseMemObject(bufferR));
     checkStatus(clReleaseCommandQueue(commandQueue));
     checkStatus(clReleaseContext(context));
-
-    //for (int i = 0; i < image.height; i++) {
-    //    for (int j = 0; j < image.width; j++) {
-    //        blur_pixel(r.get(), g.get(), b.get(), rOut.get(), gOut.get(), bOut.get(), (int)image.width, (int)image.height, j, i, size, blur);
-    //    }
-    //}
 
     for (int i = 0; i < imageSize; i++) {
         image.imageData[i * 3 + 0] = rOut[i];
