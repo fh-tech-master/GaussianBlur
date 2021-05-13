@@ -21,6 +21,7 @@ struct BlurOptions {
 };
 
 int main(int argc, char** argv) {
+    // read the command line arguments
     cxxopts::Options options("Gaussian Blur", "This program can be used to apply gaussian blur to an image");
     options.add_options()
         ("i,inFilePath", "Path to the image file to blur", cxxopts::value<std::string>())
@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
     int kernelSize = blurOptions.kernelSize;
     double std_dev = blurOptions.sigma;
 
+    // validate the kernel size and the sigma
     if (kernelSize <= 0 || kernelSize > 9 || kernelSize % 2 == 0) {
         std::cout << "invalid kernel size" << std::endl;
         exit(EXIT_FAILURE);
@@ -49,13 +51,17 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
+    // generate the requested kernel
     double* blur = blur_kernel(kernelSize, std_dev);
 
+    // load the tga image
     tga::TGAImage image;
     tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
 
     int imageSize = (int)image.height * (int)image.width;
+    int dataSize = sizeof(unsigned char) * imageSize;
 
+    // generate the image data
     auto r = std::make_unique<unsigned char[]>(imageSize);
     auto g = std::make_unique<unsigned char[]>(imageSize);
     auto b = std::make_unique<unsigned char[]>(imageSize);
@@ -70,8 +76,6 @@ int main(int argc, char** argv) {
     auto gOut = std::make_unique<unsigned char[]>(imageSize);
     auto bOut = std::make_unique<unsigned char[]>(imageSize);
 
-    auto dataSize = sizeof(unsigned char) * imageSize;
-
     // used for checking error status of api calls
     cl_int status;
 
@@ -79,8 +83,7 @@ int main(int argc, char** argv) {
     cl_uint numPlatforms = 0;
     checkStatus(clGetPlatformIDs(0, NULL, &numPlatforms));
 
-    if (numPlatforms == 0)
-    {
+    if (numPlatforms == 0) {
         printf("Error: No OpenCL platform available!\n");
         exit(EXIT_FAILURE);
     }
@@ -93,8 +96,7 @@ int main(int argc, char** argv) {
     cl_uint numDevices = 0;
     checkStatus(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices));
 
-    if (numDevices == 0)
-    {
+    if (numDevices == 0) {
         printf("Error: No OpenCL device available for platform!\n");
         exit(EXIT_FAILURE);
     }
@@ -111,6 +113,7 @@ int main(int argc, char** argv) {
     cl_command_queue commandQueue = clCreateCommandQueue(context, device, 0, &status);
     checkStatus(status);
 
+    // create buffers for the image data and the blur kernel
     cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
     checkStatus(status);
     cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
@@ -128,6 +131,7 @@ int main(int argc, char** argv) {
     cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize * kernelSize, NULL, &status);
     checkStatus(status);
 
+    // enqueue write buffers for the constant data
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferR, CL_TRUE, 0, dataSize, r.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, g.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, b.get(), 0, NULL, NULL));
@@ -137,12 +141,12 @@ int main(int argc, char** argv) {
     // read the kernel source
     const char* kernelFileName = "gauss.cl";
     std::ifstream ifs(kernelFileName);
-    if (!ifs.good())
-    {
+    if (!ifs.good()) {
         printf("Error: Could not open kernel with file name %s!\n", kernelFileName);
         exit(EXIT_FAILURE);
     }
 
+    // load the opencl kernel
     std::string programSource((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     const char* programSourceArray = programSource.c_str();
     size_t programSize = programSource.length();
@@ -153,8 +157,7 @@ int main(int argc, char** argv) {
 
     // build the program
     status = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
-    if (status != CL_SUCCESS)
-    {
+    if (status != CL_SUCCESS) {
         printCompilerError(program, device);
         exit(EXIT_FAILURE);
     }
@@ -163,6 +166,7 @@ int main(int argc, char** argv) {
     cl_kernel kernel = clCreateKernel(program, "test", &status);
     checkStatus(status);
 
+    // setting the kernel arguments
     checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferR));
     checkStatus(clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferG));
     checkStatus(clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferB));
@@ -172,9 +176,11 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 6, sizeof(cl_mem), &bufferKernelSize));
     checkStatus(clSetKernelArg(kernel, 7, sizeof(cl_mem), &bufferBlurKernel));
 
+    // run the program
     size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL));
-
+    
+    // read the result of the program
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferROut, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferGOut, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferBOut, CL_TRUE, 0, dataSize, bOut.get(), 0, NULL, NULL));
@@ -185,6 +191,7 @@ int main(int argc, char** argv) {
     checkStatus(clReleaseCommandQueue(commandQueue));
     checkStatus(clReleaseContext(context));
 
+    // write the result into the tga image vector
     for (int i = 0; i < imageSize; i++) {
         image.imageData[i * 3 + 0] = rOut[i];
         image.imageData[i * 3 + 1] = gOut[i];
