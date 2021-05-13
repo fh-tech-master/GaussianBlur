@@ -1,12 +1,12 @@
 __kernel void test(
-	__global uchar* r,
-	__global uchar* g,
-	__global uchar* b,
+	__global const uchar* r,
+	__global const uchar* g,
+	__global const uchar* b,
 	__global uchar* rOut,
 	__global uchar* gOut,
 	__global uchar* bOut,
-	__global int* kernelSize,
-	__global double* blurKernel
+	__global const int* kernelSize,
+	__global const double* blurKernel
 	)
 {
   size_t px = get_global_id(0);
