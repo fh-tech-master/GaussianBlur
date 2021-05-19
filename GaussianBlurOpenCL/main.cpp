@@ -21,7 +21,6 @@ struct BlurOptions {
 };
 
 int main(int argc, char** argv) {
-    /*
     // read the command line arguments
     cxxopts::Options options("Gaussian Blur", "This program can be used to apply gaussian blur to an image");
     options.add_options()
@@ -40,9 +39,6 @@ int main(int argc, char** argv) {
 
     int kernelSize = blurOptions.kernelSize;
     double std_dev = blurOptions.sigma;
-    */
-    int kernelSize = 9;
-    double std_dev = 100.0;
 
     // validate the kernel size and the sigma
     if (kernelSize <= 0 || kernelSize > 9 || kernelSize % 2 == 0) {
@@ -60,8 +56,7 @@ int main(int argc, char** argv) {
 
     // load the tga image
     tga::TGAImage image;
-    // tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
-    tga::LoadTGA(&image, "lena.tga");
+    tga::LoadTGA(&image, blurOptions.inFilePath.c_str());
 
     int imageSize = (int)image.height * (int)image.width;
     int dataSize = sizeof(unsigned char) * imageSize;
@@ -203,8 +198,7 @@ int main(int argc, char** argv) {
         image.imageData[i * 3 + 2] = bOut[i];
     }
 
-    // tga::saveTGA(image, blurOptions.outFilePath.c_str());
-    tga::saveTGA(image, "out.tga");
+    tga::saveTGA(image, blurOptions.outFilePath.c_str());
 
     return 0;
 }
