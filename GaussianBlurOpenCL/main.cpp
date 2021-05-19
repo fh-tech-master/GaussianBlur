@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     }
 
     // generate the requested kernel
-    double* blur = blur_kernel(kernelSize, std_dev);
+    double* blur = _1d_blur_kernel(kernelSize, std_dev);
 
     // load the tga image
     tga::TGAImage image;
@@ -175,11 +175,20 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferBOut));
     checkStatus(clSetKernelArg(kernel, 6, sizeof(cl_mem), &bufferKernelSize));
     checkStatus(clSetKernelArg(kernel, 7, sizeof(cl_mem), &bufferBlurKernel));
+    checkStatus(clSetKernelArg(kernel, 8,  image.width * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 9,  image.width * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 10, image.width * sizeof(unsigned char), NULL));
 
-    // run the program
     size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
-    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL));
+
+    // run the horizontal program
+    size_t horizontalWorkSize[2] = { (int)image.width, 1 };
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, NULL));
     
+    // run the vertical program
+    size_t verticalWorkSize[2] = { 1, (int)image.height };
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 0, NULL, NULL));
+
     // read the result of the program
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferROut, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
     checkStatus(clEnqueueReadBuffer(commandQueue, bufferGOut, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
