@@ -55,7 +55,7 @@ double * blur_kernel(int kernel_size, double std_dev) {
         }
     }
 
-    /*for (int i = 0; i < k + 1; i++)
+    for (int i = 0; i < k + 1; i++)
         delete[] blur[i];
 
     delete[] blur;
@@ -63,7 +63,7 @@ double * blur_kernel(int kernel_size, double std_dev) {
     for (int i = 0; i < kernel_size; i++)
         delete[] kernel[i];
 
-    delete[] kernel;*/
+    delete[] kernel;
 
     return simpleKernel;
 }
