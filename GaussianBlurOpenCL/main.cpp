@@ -114,17 +114,17 @@ int main(int argc, char** argv) {
     checkStatus(status);
 
     // create buffers for the image data and the blur kernel
-    cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferROut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferROut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferGOut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferGOut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferBOut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferBOut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
     cl_mem bufferKernelSize = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &status);
     checkStatus(status);
