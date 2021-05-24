@@ -197,6 +197,13 @@ int main(int argc, char** argv) {
     checkStatus(clReleaseKernel(kernel));
     checkStatus(clReleaseProgram(program));
     checkStatus(clReleaseMemObject(bufferR));
+    checkStatus(clReleaseMemObject(bufferG));
+    checkStatus(clReleaseMemObject(bufferB));
+    checkStatus(clReleaseMemObject(bufferROut));
+    checkStatus(clReleaseMemObject(bufferGOut));
+    checkStatus(clReleaseMemObject(bufferBOut));
+    checkStatus(clReleaseMemObject(bufferKernelSize));
+    checkStatus(clReleaseMemObject(bufferBlurKernel));
     checkStatus(clReleaseCommandQueue(commandQueue));
     checkStatus(clReleaseContext(context));
 
