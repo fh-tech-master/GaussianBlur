@@ -183,16 +183,17 @@ int main(int argc, char** argv) {
 
     // run the horizontal program
     size_t horizontalWorkSize[2] = { (int)image.width, 1 };
-    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, NULL));
+    cl_event horizontalClEvent;
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, &horizontalClEvent));
     
     // run the vertical program
     size_t verticalWorkSize[2] = { 1, (int)image.height };
-    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 0, NULL, NULL));
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 1, &horizontalClEvent, NULL));
 
     // read the result of the program
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferROut, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferGOut, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferBOut, CL_TRUE, 0, dataSize, bOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferR, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, bOut.get(), 0, NULL, NULL));
 
     checkStatus(clReleaseKernel(kernel));
     checkStatus(clReleaseProgram(program));

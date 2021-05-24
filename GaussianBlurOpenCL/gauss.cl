@@ -1,7 +1,7 @@
 __kernel void test(
-	__global const uchar* r,
-	__global const uchar* g,
-	__global const uchar* b,
+	__global uchar* r,
+	__global uchar* g,
+	__global uchar* b,
 	__global uchar* rOut,
 	__global uchar* gOut,
 	__global uchar* bOut,
@@ -24,9 +24,19 @@ __kernel void test(
   // for knowing the length of the local arrays
   size_t size = get_local_size(0) * get_local_size(1);
 
-  tempR[localIndex] = r[globalIndex];
-  tempG[localIndex] = g[globalIndex];
-  tempB[localIndex] = b[globalIndex];
+  // for knowing if it is the horizontal or vertical blur
+  bool isHorizontalBlur = get_local_size(1) == 1;
+
+  if (isHorizontalBlur) {
+	  tempR[localIndex] = r[globalIndex];
+	  tempG[localIndex] = g[globalIndex];
+	  tempB[localIndex] = b[globalIndex];
+  }
+  else {
+	  tempR[localIndex] = rOut[globalIndex];
+	  tempG[localIndex] = gOut[globalIndex];
+	  tempB[localIndex] = bOut[globalIndex];
+  }
 
   // waiting for the local arrays to be fully initialzed accross the workgroup
   barrier(CLK_LOCAL_MEM_FENCE);
@@ -47,7 +57,14 @@ __kernel void test(
     bBlur += (double)tempB[x] * blurKernel[i];
   }
 
-  rOut[globalIndex] = (unsigned char)round(rBlur);
-  gOut[globalIndex] = (unsigned char)round(gBlur);
-  bOut[globalIndex] = (unsigned char)round(bBlur);
+  if (isHorizontalBlur) {
+	  rOut[globalIndex] = (unsigned char)round(rBlur);
+	  gOut[globalIndex] = (unsigned char)round(gBlur);
+	  bOut[globalIndex] = (unsigned char)round(bBlur);
+  }
+  else {
+	  r[globalIndex] = (unsigned char)round(rBlur);
+	  g[globalIndex] = (unsigned char)round(gBlur);
+	  b[globalIndex] = (unsigned char)round(bBlur);
+  }
 }
