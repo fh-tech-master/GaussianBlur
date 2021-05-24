@@ -105,6 +105,14 @@ int main(int argc, char** argv) {
     cl_device_id device;
     checkStatus(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 1, &device, NULL));
 
+    // output device capabilities
+    size_t maxWorkGroupSize;
+    checkStatus(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL));
+    if (maxWorkGroupSize < image.height || maxWorkGroupSize < image.width) {
+        printf("Error: Max work group size is smaller than image dimensions!\n");
+        exit(EXIT_FAILURE);
+    }
+
     // create context
     cl_context context = clCreateContext(NULL, 1, &device, NULL, NULL, &status);
     checkStatus(status);
@@ -166,7 +174,7 @@ int main(int argc, char** argv) {
     cl_kernel kernel = clCreateKernel(program, "test", &status);
     checkStatus(status);
 
-    // setting the kernel arguments
+    // setting the horizontal kernel arguments
     checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferR));
     checkStatus(clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferG));
     checkStatus(clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferB));
@@ -186,6 +194,15 @@ int main(int argc, char** argv) {
     cl_event horizontalClEvent;
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, &horizontalClEvent));
     
+
+    // setting the vertical kernel arguments
+    checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferROut));
+    checkStatus(clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferGOut));
+    checkStatus(clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferBOut));
+    checkStatus(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bufferR));
+    checkStatus(clSetKernelArg(kernel, 4, sizeof(cl_mem), &bufferG));
+    checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferB));
+
     // run the vertical program
     size_t verticalWorkSize[2] = { 1, (int)image.height };
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 1, &horizontalClEvent, NULL));
