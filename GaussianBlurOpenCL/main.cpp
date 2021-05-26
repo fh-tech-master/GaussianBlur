@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     checkStatus(status);
     cl_mem bufferKernelSize = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &status);
     checkStatus(status);
-    cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize * kernelSize, NULL, &status);
+    cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize, NULL, &status);
     checkStatus(status);
 
     // enqueue write buffers for the constant data
@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, g.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, b.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferKernelSize, CL_TRUE, 0, sizeof(int), &kernelSize, 0, NULL, NULL));
-    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferBlurKernel, CL_TRUE, 0, sizeof(double) * kernelSize * kernelSize, blur, 0, NULL, NULL));
+    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferBlurKernel, CL_TRUE, 0, sizeof(double) * kernelSize, blur, 0, NULL, NULL));
 
     // read the kernel source
     const char* kernelFileName = "gauss.cl";
@@ -193,7 +193,6 @@ int main(int argc, char** argv) {
     size_t horizontalWorkSize[2] = { (int)image.width, 1 };
     cl_event horizontalClEvent;
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, &horizontalClEvent));
-    
 
     // setting the vertical kernel arguments
     checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferROut));
@@ -202,6 +201,9 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bufferR));
     checkStatus(clSetKernelArg(kernel, 4, sizeof(cl_mem), &bufferG));
     checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferB));
+    checkStatus(clSetKernelArg(kernel, 8, image.height * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 9, image.height * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 10, image.height * sizeof(unsigned char), NULL));
 
     // run the vertical program
     size_t verticalWorkSize[2] = { 1, (int)image.height };

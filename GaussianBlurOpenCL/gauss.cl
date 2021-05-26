@@ -24,9 +24,6 @@ __kernel void test(
   // for knowing the length of the local arrays
   size_t size = get_local_size(0) * get_local_size(1);
 
-  // for knowing if it is the horizontal or vertical blur
-  bool isHorizontalBlur = get_local_size(1) == 1;
-
   tempR[localIndex] = r[globalIndex];
   tempG[localIndex] = g[globalIndex];
   tempB[localIndex] = b[globalIndex];
