@@ -1,19 +1,35 @@
 __kernel void test(
-	__global const uchar* r,
-	__global const uchar* g,
-	__global const uchar* b,
+	__global uchar* r,
+	__global uchar* g,
+	__global uchar* b,
 	__global uchar* rOut,
 	__global uchar* gOut,
 	__global uchar* bOut,
 	__global const int* kernelSize,
-	__global const double* blurKernel
+	__global const double* blurKernel,
+	__local uchar* tempR,
+	__local uchar* tempG,
+	__local uchar* tempB
 	)
 {
+  // for accessing the correct pixel
   size_t px = get_global_id(0);
   size_t py = get_global_id(1);
-
   size_t width = get_global_size(0);
-  size_t height = get_global_size(1);
+  size_t globalIndex = py * width + px;
+
+  // for storing it at the right place
+  size_t localIndex = get_local_id(0) + get_local_id(1);
+
+  // for knowing the length of the local arrays
+  size_t size = get_local_size(0) * get_local_size(1);
+
+  tempR[localIndex] = r[globalIndex];
+  tempG[localIndex] = g[globalIndex];
+  tempB[localIndex] = b[globalIndex];
+
+  // waiting for the local arrays to be fully initialzed accross the workgroup
+  barrier(CLK_LOCAL_MEM_FENCE);
 
   int kSize = *kernelSize;
 
@@ -21,33 +37,17 @@ __kernel void test(
   double gBlur = 0.0;
   double bBlur = 0.0;
 
-  int x = px - (kSize / 2);
-
   for (int i = 0; i < kSize; i++) {
-    int y = py - (kSize / 2);
-    for (int j = 0; j < kSize; j++) {
-      int newX = x;
-      int newY = y;
-      if (newX < 0) newX = 0;
-      if (newX >= width) newX = width - 1;
-      if (newY < 0) newY = 0;
-      if (newY >= height) newY = height - 1;
+    int x = localIndex - (kSize / 2) + i;
+    if (x < 0) x = 0;
+    if (x >= size) x = size - 1;
 
-      int index = newY * width + newX;
-      int blurIndex = i * kSize + j;
-
-      rBlur += (double)r[index] * blurKernel[blurIndex];
-      gBlur += (double)g[index] * blurKernel[blurIndex];
-      bBlur += (double)b[index] * blurKernel[blurIndex];
-
-      y++;
-    }
-    x++;
+    rBlur += (double)tempR[x] * blurKernel[i];
+    gBlur += (double)tempG[x] * blurKernel[i];
+    bBlur += (double)tempB[x] * blurKernel[i];
   }
 
-  int index = py * width + px;
-
-  rOut[index] = (unsigned char)round(rBlur);
-  gOut[index] = (unsigned char)round(gBlur);
-  bOut[index] = (unsigned char)round(bBlur);
+  rOut[globalIndex] = (unsigned char)round(rBlur);
+  gOut[globalIndex] = (unsigned char)round(gBlur);
+  bOut[globalIndex] = (unsigned char)round(bBlur);
 }

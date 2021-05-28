@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     }
 
     // generate the requested kernel
-    double* blur = blur_kernel(kernelSize, std_dev);
+    double* blur = _1d_blur_kernel(kernelSize, std_dev);
 
     // load the tga image
     tga::TGAImage image;
@@ -105,6 +105,14 @@ int main(int argc, char** argv) {
     cl_device_id device;
     checkStatus(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 1, &device, NULL));
 
+    // output device capabilities
+    size_t maxWorkGroupSize;
+    checkStatus(clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &maxWorkGroupSize, NULL));
+    if (maxWorkGroupSize < image.height || maxWorkGroupSize < image.width) {
+        printf("Error: Max work group size is smaller than image dimensions!\n");
+        exit(EXIT_FAILURE);
+    }
+
     // create context
     cl_context context = clCreateContext(NULL, 1, &device, NULL, NULL, &status);
     checkStatus(status);
@@ -114,21 +122,21 @@ int main(int argc, char** argv) {
     checkStatus(status);
 
     // create buffers for the image data and the blur kernel
-    cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferR = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferG = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY, dataSize, NULL, &status);
+    cl_mem bufferB = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferROut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferROut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferGOut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferGOut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
-    cl_mem bufferBOut = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status);
+    cl_mem bufferBOut = clCreateBuffer(context, CL_MEM_READ_WRITE, dataSize, NULL, &status);
     checkStatus(status);
     cl_mem bufferKernelSize = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int), NULL, &status);
     checkStatus(status);
-    cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize * kernelSize, NULL, &status);
+    cl_mem bufferBlurKernel = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(double) * kernelSize, NULL, &status);
     checkStatus(status);
 
     // enqueue write buffers for the constant data
@@ -136,7 +144,7 @@ int main(int argc, char** argv) {
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, g.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, b.get(), 0, NULL, NULL));
     checkStatus(clEnqueueWriteBuffer(commandQueue, bufferKernelSize, CL_TRUE, 0, sizeof(int), &kernelSize, 0, NULL, NULL));
-    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferBlurKernel, CL_TRUE, 0, sizeof(double) * kernelSize * kernelSize, blur, 0, NULL, NULL));
+    checkStatus(clEnqueueWriteBuffer(commandQueue, bufferBlurKernel, CL_TRUE, 0, sizeof(double) * kernelSize, blur, 0, NULL, NULL));
 
     // read the kernel source
     const char* kernelFileName = "gauss.cl";
@@ -166,7 +174,7 @@ int main(int argc, char** argv) {
     cl_kernel kernel = clCreateKernel(program, "test", &status);
     checkStatus(status);
 
-    // setting the kernel arguments
+    // setting the horizontal kernel arguments
     checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferR));
     checkStatus(clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferG));
     checkStatus(clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferB));
@@ -175,19 +183,47 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferBOut));
     checkStatus(clSetKernelArg(kernel, 6, sizeof(cl_mem), &bufferKernelSize));
     checkStatus(clSetKernelArg(kernel, 7, sizeof(cl_mem), &bufferBlurKernel));
+    checkStatus(clSetKernelArg(kernel, 8,  image.width * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 9,  image.width * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 10, image.width * sizeof(unsigned char), NULL));
 
-    // run the program
     size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
-    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL));
-    
+
+    // run the horizontal program
+    size_t horizontalWorkSize[2] = { (int)image.width, 1 };
+    cl_event horizontalClEvent;
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, &horizontalClEvent));
+
+    // setting the vertical kernel arguments
+    checkStatus(clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufferROut));
+    checkStatus(clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufferGOut));
+    checkStatus(clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufferBOut));
+    checkStatus(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bufferR));
+    checkStatus(clSetKernelArg(kernel, 4, sizeof(cl_mem), &bufferG));
+    checkStatus(clSetKernelArg(kernel, 5, sizeof(cl_mem), &bufferB));
+    checkStatus(clSetKernelArg(kernel, 8, image.height * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 9, image.height * sizeof(unsigned char), NULL));
+    checkStatus(clSetKernelArg(kernel, 10, image.height * sizeof(unsigned char), NULL));
+
+    // run the vertical program
+    size_t verticalWorkSize[2] = { 1, (int)image.height };
+    checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 1, &horizontalClEvent, NULL));
+
     // read the result of the program
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferROut, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferGOut, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
-    checkStatus(clEnqueueReadBuffer(commandQueue, bufferBOut, CL_TRUE, 0, dataSize, bOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferR, CL_TRUE, 0, dataSize, rOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferG, CL_TRUE, 0, dataSize, gOut.get(), 0, NULL, NULL));
+    checkStatus(clEnqueueReadBuffer(commandQueue, bufferB, CL_TRUE, 0, dataSize, bOut.get(), 0, NULL, NULL));
 
     checkStatus(clReleaseKernel(kernel));
     checkStatus(clReleaseProgram(program));
     checkStatus(clReleaseMemObject(bufferR));
+    checkStatus(clReleaseMemObject(bufferG));
+    checkStatus(clReleaseMemObject(bufferB));
+    checkStatus(clReleaseMemObject(bufferROut));
+    checkStatus(clReleaseMemObject(bufferGOut));
+    checkStatus(clReleaseMemObject(bufferBOut));
+    checkStatus(clReleaseMemObject(bufferKernelSize));
+    checkStatus(clReleaseMemObject(bufferBlurKernel));
     checkStatus(clReleaseCommandQueue(commandQueue));
     checkStatus(clReleaseContext(context));
 
