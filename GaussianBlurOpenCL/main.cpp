@@ -187,10 +187,10 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 9,  image.width * sizeof(unsigned char), NULL));
     checkStatus(clSetKernelArg(kernel, 10, image.width * sizeof(unsigned char), NULL));
 
-    size_t globalWorkSize[2] = { (int)image.width, (int)image.height };
+    size_t globalWorkSize[2] = { (size_t)image.width, (size_t)image.height };
 
     // run the horizontal program
-    size_t horizontalWorkSize[2] = { (int)image.width, 1 };
+    size_t horizontalWorkSize[2] = { (size_t)image.width, 1 };
     cl_event horizontalClEvent;
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, horizontalWorkSize, 0, NULL, &horizontalClEvent));
 
@@ -206,7 +206,7 @@ int main(int argc, char** argv) {
     checkStatus(clSetKernelArg(kernel, 10, image.height * sizeof(unsigned char), NULL));
 
     // run the vertical program
-    size_t verticalWorkSize[2] = { 1, (int)image.height };
+    size_t verticalWorkSize[2] = { 1, (size_t)image.height };
     checkStatus(clEnqueueNDRangeKernel(commandQueue, kernel, 2, NULL, globalWorkSize, verticalWorkSize, 1, &horizontalClEvent, NULL));
 
     // read the result of the program
